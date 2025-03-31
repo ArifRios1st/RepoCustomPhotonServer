@@ -1,0 +1,133 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- BepInEx Properties -->
+	<PropertyGroup>
+		<AssemblyName>$(MSBuildProjectName)</AssemblyName> <!-- PLUGIN_GUID -->
+		<Product>$(MSBuildProjectName)</Product> <!-- PLUGIN_NAME -->
+		<!-- <Version/> is handled by MinVer with Git tags -->
+
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<!-- Repository Properties -->
+	<PropertyGroup>
+		<Authors>ArifRios1st</Authors>
+		<Description>A Mod for redirecting custom photon R.E.P.O server.</Description>
+		<PackageTags>R.E.P.O., unity, bepinex, photon-pun, modding</PackageTags>
+		<Copyright>Copyright © 2025 ArifRios1st</Copyright>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/ArifRios1st/RepoCustomPhotonServer</RepositoryUrl>
+		<PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+		<RepositoryType>git</RepositoryType>
+		<RequireLicenseAcceptance>false</RequireLicenseAcceptance>
+		<IsPackable>true</IsPackable>
+		<PackageId>ArifRios1st.$(AssemblyName)</PackageId>
+
+	</PropertyGroup>
+
+	<!-- Project Properties -->
+	<PropertyGroup>
+		<TargetFramework>netstandard2.1</TargetFramework>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<LangVersion>latest</LangVersion>
+		<ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+		<RootNamespace>$(MSBuildProjectName)</RootNamespace>
+	</PropertyGroup>
+
+	<!-- Enable Nullable for better IDE null-checking -->
+	<PropertyGroup>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<!-- Set NuGet Sources -->
+	<PropertyGroup>
+		<RestoreAdditionalProjectSources>
+			https://api.nuget.org/v3/index.json;
+			https://nuget.bepinex.dev/v3/index.json
+		</RestoreAdditionalProjectSources>
+	</PropertyGroup>
+
+	<!-- Target 'AddGeneratedFile' is from BepInEx.PluginInfoProps -->
+	<Target Name="SetPluginVersion" BeforeTargets="AddGeneratedFile" DependsOnTargets="MinVer">
+		<PropertyGroup>
+			<PlainVersion>$(MinVerMajor).$(MinVerMinor).$(MinVerPatch)</PlainVersion>
+			<BepInExPluginVersion>$(PlainVersion)</BepInExPluginVersion>
+		</PropertyGroup>
+	</Target>
+
+	<!-- Embed Debug Symbols for Easier Debugging -->
+	<PropertyGroup>
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>embedded</DebugType>
+		<!--
+        Trim the project path to prevent players from potentially
+        viewing Private Information in stack traces.
+        -->
+		<PathMap>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'))=./</PathMap>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="$(ProjectDir)../README.md" Pack="true" PackagePath="/" />
+		<None Include="$(ProjectDir)../CHANGELOG.md" Pack="true" PackagePath="/" />
+		<None Include="$(ProjectDir)../icon.png" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+		<PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
+	</ItemGroup>
+
+	<Target Name="ClearReferenceCopyLocalPaths" AfterTargets="ResolveAssemblyReferences">
+		<ItemGroup>
+			<ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" />
+		</ItemGroup>
+	</Target>
+
+	<!-- Primary Package References -->
+	<ItemGroup>
+		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+		<PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+		<PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" />
+		<PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" PrivateAssets="all" />
+		<PackageReference Include="UnityEngine.Modules" Version="2022.3.21" IncludeAssets="compile" PrivateAssets="all" />
+		<PackageReference Include="R.E.P.O.GameLibs.Steam" Version="*-*" />
+	</ItemGroup>
+
+	<!-- Default values in case the .csproj.user file doesn't exist -->
+	<PropertyGroup>
+		<GaleProfile Condition="'$(GaleProfile)' == ''">OFM</GaleProfile>
+		<GaleDataFolder Condition="'$(GaleDataFolder)' == ''">$(AppData)\com.kesomannen.gale</GaleDataFolder>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<BepInExPluginsFolder Condition="'$(BepInExPluginsFolder)' == ''">$(GaleDataFolder)\repo\profiles\$(GaleProfile)\BepInEx\plugins\</BepInExPluginsFolder>
+		<REPOLibPluginFolder Condition="'$(REPOLibPluginFolder)' == ''">$(BepInExPluginsFolder)ArifRios1st-$(MSBuildProjectName)\</REPOLibPluginFolder>
+		<UserSecretsId>bb5156d0-0934-4462-bc66-0ff405611db7</UserSecretsId>
+	</PropertyGroup>
+
+	<!-- Copy DLL to Gale Zehs-REPOLib plugin folder -->
+	<Target Name="CopyToPluginsFolder" AfterTargets="PostBuildEvent" Condition="Exists('$(BepInExPluginsFolder)')">
+		<Copy DestinationFolder="$(REPOLibPluginFolder)" OverwriteReadOnlyFiles="true" SkipUnchangedFiles="true" SourceFiles="$(TargetPath)" />
+	</Target>
+
+	<Target Name="ValidateCopiedPlugin" AfterTargets="CopyToPluginsFolder" Condition="!Exists('$(BepInExPluginsFolder)') And $(CI) != 'true'">
+		<Warning Text="Couldn't copy build target to '$(BepInExPluginsFolder)' because the path does not exist. Configure the path in your RepoCustomPhotonServer.csproj.user file." />
+	</Target>
+
+	<!-- Call with `dotnet build -target:PackThunderstore` -->
+	<Target Name="PackThunderstore" DependsOnTargets="PostBuildEvent;SetPluginVersion">
+		<Exec Command="dotnet tool restore" />
+		<Exec Command="dotnet tcli build --config-path &quot;$(ProjectDir)Thunderstore/thunderstore.toml&quot; --package-version $(PlainVersion)" />
+		<ItemGroup>
+			<FilesToRename Include="$(ProjectDir)dist/*-$(PlainVersion).zip" />
+		</ItemGroup>
+		<Move SourceFiles="@(FilesToRename)" DestinationFiles="@(FilesToRename -&gt; Replace($(PlainVersion), $(MinVerVersion)))" />
+	</Target>
+
+	<!-- This is manually called by the github actions publish workflow -->
+	<Target Name="PublishThunderstore" DependsOnTargets="PackThunderstore">
+		<Exec Command="dotnet tcli publish --config-path &quot;$(ProjectDir)Thunderstore/thunderstore.toml&quot; --file &quot;$(SolutionDir)artifacts/thunderstore/ArifRios1st-$(MSBuildProjectName)-$(MinVerVersion).zip&quot;" />
+	</Target>
+	
+</Project>
