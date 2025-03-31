@@ -33,4 +33,4 @@ target = "/"
 [publish]
 communities = [ "repo", ]
 [publish.categories]
-repo = [ "mods", "tools", "misc", "server-side" ]
+repo = [ "mods", "tools", "misc", ]
